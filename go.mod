@@ -4,7 +4,7 @@ go 1.24.2
 
 require github.com/hashicorp/terraform-plugin-framework v1.9.0
 
-require github.com/hashicorp/terraform-plugin-log v0.9.0 // indirect
+require github.com/hashicorp/terraform-plugin-log v0.9.0
 
 require github.com/stretchr/testify v1.8.2 // indirect
 
