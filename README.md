@@ -23,7 +23,7 @@ This resource manages the IP rules of a CosmosDB account.
 Unlike the official `azurerm_cosmosdb_account` it ignores additional IPs.
 That's literally the only reason to use this, to take advantage of this ignoring so additional IPs aren't considered drifts.
 
-You should add the ip_rules of the official resource in a `lifecycle { ignore_changes = [...] } ` block to avoid both resources
+You should add the ip_range_filter of the official resource in its `ignore_changes` block to avoid both resources
 from conflicting.
 
 # Examples
@@ -32,11 +32,11 @@ This example simulates having a CosmosDB account and using this resource to take
 ```terraform
 resource "azurerm_cosmosdb_account" "example" {
   ...
-  # fill in all the fields you want as needed
+  # fill in all fields you want EXCEPT ip_range_filter
   ...
 
   lifecycle {
-    ignore_changes = ["ip_rules"] # this is necessary to avoid conflicts
+    ignore_changes = [ip_range_filter] # this is necessary to avoid conflicts in later applies
   }
 }
 
