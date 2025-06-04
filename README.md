@@ -41,7 +41,7 @@ resource "azurerm_cosmosdb_account" "example" {
 }
 
 resource "azurermext_cosmosdb_ip_range_filter" "example" {
-  cosmosdb_account_id = "azurerm_cosmosdb_account.example.id
+  cosmosdb_account_id = azurerm_cosmosdb_account.example.id
   ip_rules = ["4.210.172.107", "13.88.56.148", "13.91.105.0/24", ...] # list of ip and ip ranges to add as firewall rules
 }
 ```
