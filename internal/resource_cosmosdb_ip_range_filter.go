@@ -34,7 +34,7 @@ func NewCosmosDBMongoDBIpFilterResource() resource.Resource {
 }
 
 func (r *CosmosDBIpFilterResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_cosmosdb_ip_filter"
+	resp.TypeName = req.ProviderTypeName + "_cosmosdb_ip_range_filter"
 }
 
 func (r *CosmosDBIpFilterResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
@@ -46,7 +46,7 @@ func (r *CosmosDBIpFilterResource) Configure(_ context.Context, req resource.Con
 
 func (r *CosmosDBIpFilterResource) Schema(_ context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: cosmosDbIpFilterDescription,
+		Description: cosmosDbIpRangeFilterDescription,
 		Version:     1,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
