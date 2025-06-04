@@ -166,27 +166,33 @@ func (r *CosmosDBIpFilterResource) Delete(ctx context.Context, req resource.Dele
 	currentIpRules := getCurrentIpRules(cosmo)
 
 	// figuring out which rules to remove
-	finalIPRules := []client.CosmosDBIpRule{}
+	rulesToRemove := []client.CosmosDBIpRule{}
 	for _, stateIPT := range state.IpRules.Elements() {
 		stateIP := stateIPT.(types.String).ValueString()
 		if slices.Contains(currentIpRules, stateIP) {
-			finalIPRules = append(finalIPRules, client.CosmosDBIpRule{IpAddressOrRange: stateIP})
+			rulesToRemove = append(rulesToRemove, client.CosmosDBIpRule{IpAddressOrRange: stateIP})
 		}
 	}
 
-	if len(currentIpRules) == len(finalIPRules) {
-		return
+	if len(rulesToRemove) != 0 {
+		finalIPRules := []client.CosmosDBIpRule{}
+		for _, rule := range cosmo.Properties.IpRules {
+			if rule.IpAddressOrRange == "" {
+				continue
+			}
+			if !slices.Contains(rulesToRemove, rule) {
+				finalIPRules = append(finalIPRules, rule)
+			}
+		}
+		err = r.client.UpdateCosmosDBIpRulesAndPoll(ctx, cosmosID, finalIPRules)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Could not remove CosmosDB IP rules",
+				err.Error(),
+			)
+			return
+		}
 	}
-
-	err = r.client.UpdateCosmosDBIpRulesAndPoll(ctx, cosmosID, finalIPRules)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Could not remove CosmosDB IP rules",
-			err.Error(),
-		)
-		return
-	}
-
 }
 
 // This method modifies state and diags inplace
