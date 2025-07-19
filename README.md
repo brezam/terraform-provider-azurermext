@@ -13,26 +13,24 @@ provider "azurermext" {
 }
 ```
 
-I recommend using the environment variables option.
+It's recommended to use the environment variables option, especially for the cient secret.
 
 
 # Resources/Data Sources
 ## [Resource] azurermext_cosmosdb_ip_range_filter
-This resource manages the IP rules of a CosmosDB account.
+This resource manages the IP rules for a CosmosDB account.
 
-Unlike the official `azurerm_cosmosdb_account` it ignores additional IPs.
-That's literally the only reason to use this, to take advantage of this ignoring so additional IPs aren't considered drifts.
+Unlike the official `azurerm_cosmosdb_account` resource, this version intentionally ignores additional IPs. This behavior is its primary advantage; by not considering extra IPs, it avoids detecting drift caused by external IP modifications.
 
-You should add the ip_range_filter of the official resource in its `ignore_changes` block to avoid both resources
-from conflicting.
+To prevent conflicts between the two resources, include an `ignore_changes` for the ip_range_filter property in the official resource.
 
 # Examples
 ## azurermext_cosmosdb_ip_range_filter
-This example simulates having a CosmosDB account and using this resource to take care of IP rules:
+This example showcases having a CosmosDB account and using this resource to take care of its IP rules:
 ```terraform
 resource "azurerm_cosmosdb_account" "example" {
   ...
-  # fill in all fields you want EXCEPT ip_range_filter
+  # fill in all fields with the exception of ip_range_filter
   ...
 
   lifecycle {
@@ -46,5 +44,8 @@ resource "azurermext_cosmosdb_ip_range_filter" "example" {
 }
 ```
 
-Whatever IPs the account has that aren't listed are ignored. If you add an IP that's already present nothing happens in apply.
-If you try to remove an IP that's in the state then the API will try to remove that IP.
+Important considerations:
+- Any IPs not explicitly listed in the configuration are ignored.
+- Adding an IP that already exists will have no effect during the apply phase.
+However, if you attempt to remove an IP that exists in the current state, the API will be called to remove that IP.
+- Destroying the resource doesn't change anything. If you want to remove all managed IPs, simply apply an empty list instead.
