@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"fmt"
 	"terraform-provider-azurermext/internal/client"
 
 	"slices"
@@ -13,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 var (
@@ -84,7 +86,7 @@ func (r *CosmosDBIpFilterResource) Read(ctx context.Context, req resource.ReadRe
 		)
 		return
 	}
-	currentIpRules := getCurrentIpRules(cosmo)
+	currentIpRules := parseCurrentIpRulesFromResponse(cosmo)
 
 	if !cosmo.Properties.PublicNetworkAccess.IsEnabled() {
 		resp.Diagnostics.AddError(
@@ -98,6 +100,7 @@ func (r *CosmosDBIpFilterResource) Read(ctx context.Context, req resource.ReadRe
 		// In this case the CosmosDB account is public
 		return
 	}
+
 	newStateIpRules := []attr.Value{}
 	for _, stateIPT := range state.IpRules.Elements() {
 		stateIP := stateIPT.(types.String).ValueString()
@@ -149,50 +152,14 @@ func (r *CosmosDBIpFilterResource) Update(ctx context.Context, req resource.Upda
 func (r *CosmosDBIpFilterResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state CosmosDBMongoDBIpFilterResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	cosmosID := state.CosmosDBAccountId.ValueString()
-	cosmo, err := r.client.ReadCosmosDB(ctx, cosmosID)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Could not read CosmosDB",
-			"Failed to read CosmosDB account with ID "+cosmosID+": "+err.Error(),
-		)
-		return
-	}
-
-	currentIpRules := getCurrentIpRules(cosmo)
-
-	// figuring out which rules to remove
-	rulesToRemove := []client.CosmosDBIpRule{}
-	for _, stateIPT := range state.IpRules.Elements() {
-		stateIP := stateIPT.(types.String).ValueString()
-		if slices.Contains(currentIpRules, stateIP) {
-			rulesToRemove = append(rulesToRemove, client.CosmosDBIpRule{IpAddressOrRange: stateIP})
-		}
-	}
-
-	if len(rulesToRemove) != 0 {
-		finalIPRules := []client.CosmosDBIpRule{}
-		for _, rule := range cosmo.Properties.IpRules {
-			if rule.IpAddressOrRange == "" {
-				continue
-			}
-			if !slices.Contains(rulesToRemove, rule) {
-				finalIPRules = append(finalIPRules, rule)
-			}
-		}
-		err = r.client.UpdateCosmosDBIpRulesAndPoll(ctx, cosmosID, finalIPRules)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Could not remove CosmosDB IP rules",
-				err.Error(),
-			)
-			return
-		}
-	}
+	// Instead of no-op, we might consider removing the rules that are currently in our state, essentially having the
+	// same behavior as if the person modified the tfvars to pass an empty list.
+	// However, if the user uses this resource alongside the official `azurerm_cosmosdb_account`, and they want to perform
+	// a full `terraform destroy`, we'd have the situation where there's 10-15 minutes of select IPs removal only to then
+	// later have 10-15 minutes of CosmosDB account destruction, wasting everyone's time.
+	// I believe it's better to just give people the option of the workflow <state with IPs> -> <tfvars modification to an empty list>
+	// causing the removal of all managed IPs, and have destruction be no-op with the assumption of destruction of CosmosDB account
+	// being done by the official resource right after.
 }
 
 // This method modifies state and diags inplace
@@ -216,7 +183,7 @@ func (r *CosmosDBIpFilterResource) upsertCosmosDB(ctx context.Context, state, pl
 		return
 	}
 
-	currentIpRules := getCurrentIpRules(cosmo)
+	currentIpRules := parseCurrentIpRulesFromResponse(cosmo)
 	if len(currentIpRules) == 0 {
 		// In this case the CosmosDB account is public, so we avoid adding any IP rules otherwise we would block access.
 		// Technically speaking we should check that there are no approved private endpoints as well, but I'd rather err on the side of caution here.
@@ -267,6 +234,8 @@ func (r *CosmosDBIpFilterResource) upsertCosmosDB(ctx context.Context, state, pl
 	}
 
 	if len(newRules) != 0 || len(rulesToRemove) != 0 {
+		tflog.Info(ctx, fmt.Sprintf("New Rules: %v", newRules))
+		tflog.Info(ctx, fmt.Sprintf("Rules to remove: %v", rulesToRemove))
 		err = r.client.UpdateCosmosDBIpRulesAndPoll(ctx, plan.CosmosDBAccountId.ValueString(), finalIPRules)
 		if err != nil {
 			diags.AddError(
@@ -278,7 +247,7 @@ func (r *CosmosDBIpFilterResource) upsertCosmosDB(ctx context.Context, state, pl
 	}
 }
 
-func getCurrentIpRules(cosmo *client.CosmosDBResponse) []string {
+func parseCurrentIpRulesFromResponse(cosmo *client.CosmosDBResponse) []string {
 	ipRules := make([]string, 0, len(cosmo.Properties.IpRules))
 	for _, rule := range cosmo.Properties.IpRules {
 		if rule.IpAddressOrRange != "" {

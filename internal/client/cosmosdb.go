@@ -31,6 +31,9 @@ func (c *Client) ReadCosmosDB(ctx context.Context, cosmosAccountId string) (_ *C
 
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, NewCosmosNotFoundError(cosmosAccountId)
+		}
 		return nil, errors.New("failed to read CosmosDB: " + resp.Status + " - " + string(respBody))
 	}
 	var body CosmosDBResponse
@@ -82,7 +85,7 @@ func (c *Client) UpdateCosmosDBIpRulesAndPoll(ctx context.Context, cosmosAccount
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			finished, err := c.getPollUrl(ctx, pollUrl)
+			finished, err := c.poll(pollUrl)
 			if err != nil {
 				return err
 			}
@@ -93,8 +96,7 @@ func (c *Client) UpdateCosmosDBIpRulesAndPoll(ctx context.Context, cosmosAccount
 	}
 }
 
-// this function assumes the response is of the format `PollResponse`
-func (c *Client) getPollUrl(ctx context.Context, pollUrl string) (finished bool, cErr error) {
+func (c *Client) poll(pollUrl string) (finished bool, cErr error) {
 	req, err := http.NewRequest("GET", pollUrl, nil)
 	if err != nil {
 		return false, err
