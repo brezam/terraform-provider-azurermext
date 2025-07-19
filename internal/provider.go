@@ -67,15 +67,36 @@ func (p *azureRMExtProvider) Configure(ctx context.Context, req provider.Configu
 	if config.TenantId.IsNull() {
 		tenantId = os.Getenv("ARM_TENANT_ID")
 	}
+	if tenantId == "" {
+		resp.Diagnostics.AddError(
+			"Missing Tenant ID",
+			"Tenant ID must be set either in the provider configuration or as an environment variable `ARM_TENANT_ID`.",
+		)
+		return
+	}
 
 	var clientId string
 	if config.ClientId.IsNull() {
 		clientId = os.Getenv("ARM_CLIENT_ID")
 	}
+	if clientId == "" {
+		resp.Diagnostics.AddError(
+			"Missing Client ID",
+			"Client ID must be set either in the provider configuration or as an environment variable `ARM_CLIENT_ID`.",
+		)
+		return
+	}
 
 	var clientSecret string
 	if config.ClientSecret.IsNull() {
 		clientSecret = os.Getenv("ARM_CLIENT_SECRET")
+	}
+	if clientId == "" {
+		resp.Diagnostics.AddError(
+			"Missing Client secret",
+			"Client secret must be set either in the provider configuration or as an environment variable `ARM_CLIENT_SECRET`.",
+		)
+		return
 	}
 
 	tflog.Info(ctx, "client configuration finished", map[string]any{"client_id": clientId, "tenant_id": tenantId})
