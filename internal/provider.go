@@ -54,7 +54,7 @@ func (p *azureRMExtProvider) Schema(_ context.Context, _ provider.SchemaRequest,
 
 // Configure defines the provider configuration and what is passed onto resource and datasources.
 func (p *azureRMExtProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
-	tflog.Info(ctx, "Configuring Azure RM Ext client")
+	tflog.Info(ctx, "Configuring Azure RM Ext client ...")
 
 	var config azureRMExtProviderModel
 	diags := req.Config.Get(ctx, &config)
@@ -63,9 +63,25 @@ func (p *azureRMExtProvider) Configure(ctx context.Context, req provider.Configu
 		return
 	}
 
-	var tenantId string
+	var (
+		tenantId     string
+		clientId     string
+		clientSecret string
+	)
 	if config.TenantId.IsNull() {
 		tenantId = os.Getenv("ARM_TENANT_ID")
+	} else {
+		tenantId = config.TenantId.ValueString()
+	}
+	if config.ClientId.IsNull() {
+		clientId = os.Getenv("ARM_CLIENT_ID")
+	} else {
+		clientId = config.ClientId.ValueString()
+	}
+	if config.ClientSecret.IsNull() {
+		clientSecret = os.Getenv("ARM_CLIENT_SECRET")
+	} else {
+		clientSecret = config.ClientSecret.ValueString()
 	}
 	if tenantId == "" {
 		resp.Diagnostics.AddError(
@@ -74,11 +90,6 @@ func (p *azureRMExtProvider) Configure(ctx context.Context, req provider.Configu
 		)
 		return
 	}
-
-	var clientId string
-	if config.ClientId.IsNull() {
-		clientId = os.Getenv("ARM_CLIENT_ID")
-	}
 	if clientId == "" {
 		resp.Diagnostics.AddError(
 			"Missing Client ID",
@@ -86,12 +97,7 @@ func (p *azureRMExtProvider) Configure(ctx context.Context, req provider.Configu
 		)
 		return
 	}
-
-	var clientSecret string
-	if config.ClientSecret.IsNull() {
-		clientSecret = os.Getenv("ARM_CLIENT_SECRET")
-	}
-	if clientId == "" {
+	if clientSecret == "" {
 		resp.Diagnostics.AddError(
 			"Missing Client secret",
 			"Client secret must be set either in the provider configuration or as an environment variable `ARM_CLIENT_SECRET`.",
@@ -99,11 +105,11 @@ func (p *azureRMExtProvider) Configure(ctx context.Context, req provider.Configu
 		return
 	}
 
-	tflog.Info(ctx, "client configuration finished", map[string]any{"client_id": clientId, "tenant_id": tenantId})
-
 	client_ := client.New(clientId, clientSecret, tenantId)
 	resp.DataSourceData = client_
 	resp.ResourceData = client_
+
+	tflog.Info(ctx, "Client configuration finished")
 }
 
 // DataSources defines the data sources implemented in the provider.
