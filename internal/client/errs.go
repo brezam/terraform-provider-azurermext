@@ -7,16 +7,16 @@ import (
 
 // Exported errors
 
-type CosmosNotFoundError struct {
+type NotFoundError struct {
 	id string
 }
 
-func NewCosmosNotFoundError(id string) *CosmosNotFoundError {
-	return &CosmosNotFoundError{id}
+func NewNotFoundError(id string) *NotFoundError {
+	return &NotFoundError{id}
 }
 
-func (e *CosmosNotFoundError) Error() string {
-	return fmt.Sprintf("CosmosDB %s not found", e.id)
+func (e *NotFoundError) Error() string {
+	return fmt.Sprintf("Resource %s not found", e.id)
 }
 
 // Helper function to capture errors from deferred functions

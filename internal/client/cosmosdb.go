@@ -32,7 +32,7 @@ func (c *Client) ReadCosmosDB(ctx context.Context, cosmosAccountId string) (_ *C
 	respBody, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusNotFound {
-			return nil, NewCosmosNotFoundError(cosmosAccountId)
+			return nil, NewNotFoundError(cosmosAccountId)
 		}
 		return nil, errors.New("failed to read CosmosDB: " + resp.Status + " - " + string(respBody))
 	}
