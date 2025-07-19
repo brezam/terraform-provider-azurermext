@@ -220,23 +220,20 @@ func (r *CosmosDBIpFilterResource) upsertCosmosDB(ctx context.Context, state, pl
 	}
 
 	// finalizing the IP rules to be set
-	finalIPRules := []client.CosmosDBIpRule{}
+	finalIPRules := []string{}
 	for _, rule := range cosmo.Properties.IpRules {
-		if rule.IpAddressOrRange == "" {
-			continue
-		}
-		if slices.Contains(currentIpRules, rule.IpAddressOrRange) && !slices.Contains(rulesToRemove, rule.IpAddressOrRange) {
-			finalIPRules = append(finalIPRules, rule)
+		ip := rule.IpAddressOrRange
+		if ip != "" && !slices.Contains(rulesToRemove, ip) {
+			finalIPRules = append(finalIPRules, ip)
 		}
 	}
-	for _, newRule := range newRules {
-		finalIPRules = append(finalIPRules, client.CosmosDBIpRule{IpAddressOrRange: newRule})
-	}
+	finalIPRules = append(finalIPRules, newRules...)
 
 	if len(newRules) != 0 || len(rulesToRemove) != 0 {
-		tflog.Info(ctx, fmt.Sprintf("New Rules: %v", newRules))
-		tflog.Info(ctx, fmt.Sprintf("Rules to remove: %v", rulesToRemove))
+		tflog.Info(ctx, fmt.Sprintf("IP Rules to add: %v", newRules))
+		tflog.Info(ctx, fmt.Sprintf("IP Rules to remove: %v", rulesToRemove))
 		err = r.client.UpdateCosmosDBIpRulesAndPoll(ctx, plan.CosmosDBAccountId.ValueString(), finalIPRules)
+		tflog.Info(ctx, "Finished updating IP Rules")
 		if err != nil {
 			diags.AddError(
 				"Could not update CosmosDB IP rules",

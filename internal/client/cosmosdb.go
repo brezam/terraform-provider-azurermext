@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 func (c *Client) ReadCosmosDB(ctx context.Context, cosmosAccountId string) (_ *CosmosDBResponse, cErr error) {
@@ -45,13 +47,13 @@ func (c *Client) ReadCosmosDB(ctx context.Context, cosmosAccountId string) (_ *C
 	return &body, nil
 }
 
-func (c *Client) UpdateCosmosDBIpRulesAndPoll(ctx context.Context, cosmosAccountId string, ipRules []CosmosDBIpRule) (cErr error) {
+func (c *Client) UpdateCosmosDBIpRulesAndPoll(ctx context.Context, cosmosAccountId string, rules []string) (cErr error) {
 	pollUrl := "https://management.azure.com" + cosmosAccountId + "?api-version=2025-04-15"
-	body := CosmosDBResponse{
-		Properties: &CosmosDBProperties{
-			IpRules: ipRules,
-		},
+	cosmosDBIPRules := make([]CosmosDBIpRule, len(rules))
+	for i, ip := range rules {
+		cosmosDBIPRules[i] = CosmosDBIpRule{IpAddressOrRange: ip}
 	}
+	body := CosmosDBResponse{Properties: &CosmosDBProperties{IpRules: cosmosDBIPRules}}
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
 		return err
@@ -67,6 +69,8 @@ func (c *Client) UpdateCosmosDBIpRulesAndPoll(ctx context.Context, cosmosAccount
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	tflog.Info(ctx, fmt.Sprintf("Updating IP rules to: %v", rules))
+	tflog.Debug(ctx, "PATCH Request "+pollUrl)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
@@ -78,14 +82,13 @@ func (c *Client) UpdateCosmosDBIpRulesAndPoll(ctx context.Context, cosmosAccount
 	}
 
 	pollUrl = resp.Header.Get("Azure-Asyncoperation")
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
+	tflog.Debug(ctx, "Async operation url: "+pollUrl)
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-			finished, err := c.poll(pollUrl)
+		case <-time.After(10 * time.Second): // Since Go 1.23 this isn't a memory leak anymore.
+			finished, err := c.poll(ctx, pollUrl)
 			if err != nil {
 				return err
 			}
@@ -96,7 +99,7 @@ func (c *Client) UpdateCosmosDBIpRulesAndPoll(ctx context.Context, cosmosAccount
 	}
 }
 
-func (c *Client) poll(pollUrl string) (finished bool, cErr error) {
+func (c *Client) poll(ctx context.Context, pollUrl string) (finished bool, cErr error) {
 	req, err := http.NewRequest("GET", pollUrl, nil)
 	if err != nil {
 		return false, err
@@ -123,11 +126,12 @@ func (c *Client) poll(pollUrl string) (finished bool, cErr error) {
 	if err != nil {
 		return false, err
 	}
+	tflog.Debug(ctx, "Async operation response: "+string(respBody.Status))
 	if respBody.Status.IsSuccess() {
 		return true, nil
 	} else if respBody.Status.IsPending() {
 		return false, nil
 	} else {
-		return false, fmt.Errorf("CosmosDB IP rules update status %s, failed: ", respBodyBytes)
+		return false, fmt.Errorf("updating IP failed. Poll status: %s", respBodyBytes)
 	}
 }
